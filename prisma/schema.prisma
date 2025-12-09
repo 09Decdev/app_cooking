@@ -1,0 +1,233 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id       String   @id @default(uuid())
+  email    String   @unique
+  password String
+  name     String?
+  avatar   String? // Lưu trực tiếp URL ảnh avatar
+  role     UserRole @default(USER)
+
+  // Quan hệ
+  recipes   Recipe[]
+  reviews   Review[]
+  favorites Favorite[]
+  orders    Order[]
+  cart      Cart?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// =========================================================
+// 2. RECIPE CORE (Nấu ăn)
+// =========================================================
+
+model Category {
+  id      String   @id @default(uuid())
+  name    String   @unique
+  slug    String   @unique
+  image   String? // Ảnh đại diện danh mục
+  recipes Recipe[]
+}
+
+model Recipe {
+  id          String  @id @default(uuid())
+  title       String
+  slug        String  @unique
+  description String? @db.Text
+
+  // OPTIMIZATION: Lưu ảnh trực tiếp
+  thumbnail String? // Ảnh bìa chính (Load danh sách cho nhanh)
+  gallery   String[] // Mảng URL ảnh (PostgreSQL specific feature) - Không cần bảng phụ
+
+  difficulty String? // Easy, Medium, Hard
+  portion    Int // Số người ăn
+  prepTime   Int // Phút
+  cookTime   Int // Phút
+  calories   Int?
+  views      Int     @default(0)
+
+  // Foreign Keys
+  authorId   String
+  author     User      @relation(fields: [authorId], references: [id])
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  // Quan hệ
+  ingredients RecipeIngredient[]
+  steps       Step[]
+  reviews     Review[]
+  favorites   Favorite[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([categoryId])
+}
+
+model Step {
+  id      String  @id @default(uuid())
+  order   Int // 1, 2, 3
+  content String  @db.Text
+  image   String? // Ảnh minh họa cho bước này
+
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+}
+
+model Ingredient {
+  id   String @id @default(uuid())
+  name String @unique // "Thịt bò", "Trứng"
+
+  // Quan hệ
+  usedIn   RecipeIngredient[]
+  products Product[] // Mapping sang sản phẩm bán
+}
+
+model RecipeIngredient {
+  id           String     @id @default(uuid())
+  recipeId     String
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+
+  amount Float // Định lượng (ví dụ: 200)
+  unit   String // Đơn vị (ví dụ: gram)
+}
+
+// =========================================================
+// 3. INTERACTION (Tương tác)
+// =========================================================
+
+model Review {
+  id      String   @id @default(uuid())
+  rating  Int // 1-5
+  content String?
+  images  String[]
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  recipeId  String
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, recipeId]) // 1 người chỉ review 1 lần/món
+}
+
+model Favorite {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  recipeId   String
+  recipe     Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([userId, recipeId]) // Composite ID
+}
+
+// =========================================================
+// 4. E-COMMERCE (Mua sắm)
+// =========================================================
+
+model Product {
+  id          String  @id @default(uuid())
+  name        String // "Thịt bò Mỹ 500g"
+  description String?
+  image       String? // Ảnh sản phẩm
+  price       Decimal @db.Decimal(10, 2)
+  stock       Int // Tồn kho
+  isActive    Boolean @default(true)
+
+  // Mapping
+  ingredientId String? // Liên kết lỏng với nguyên liệu nấu ăn
+  ingredient   Ingredient? @relation(fields: [ingredientId], references: [id])
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+
+  @@unique([cartId, productId]) // Tránh trùng lặp sản phẩm trong giỏ
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  CANCELLED
+}
+
+model Order {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  totalAmount     Decimal     @db.Decimal(10, 2)
+  status          OrderStatus @default(PENDING)
+  shippingAddress String?
+
+  items   OrderItem[]
+  payment PaymentTransaction?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Bảng quan trọng nhất của E-commerce
+model OrderItem {
+  id      String @id @default(uuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  // SNAPSHOT DATA: Lưu chết dữ liệu tại thời điểm mua
+  name     String
+  price    Decimal @db.Decimal(10, 2)
+  quantity Int
+  image    String? // Lưu lại ảnh SP lúc mua (phòng khi SP bị đổi ảnh)
+}
+
+model PaymentTransaction {
+  id      String @id @default(uuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  paymentMethod String // "VNPAY", "COD"
+  transactionId String? // Mã giao dịch ngân hàng
+  amount        Decimal  @db.Decimal(10, 2)
+  status        String // "SUCCESS", "FAILED"
+  createdAt     DateTime @default(now())
+}
