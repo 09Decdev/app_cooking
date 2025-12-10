@@ -1,34 +1,26 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { CartService } from './cart.service';
-import { CreateCartDto } from './dto/create-cart.dto';
-import { UpdateCartDto } from './dto/update-cart.dto';
+import { AuthGuard } from '@nestjs/passport';
+import {AddToCartDto} from "./dto/create-cart.dto";
+import {GetUser} from "../../common/get-user.decorator";
 
 @Controller('cart')
+@UseGuards(AuthGuard('jwt')) // Bắt buộc đăng nhập
 export class CartController {
-  constructor(private readonly cartService: CartService) {}
+    constructor(private readonly cartService: CartService) {}
 
-  @Post()
-  create(@Body() createCartDto: CreateCartDto) {
-    return this.cartService.create(createCartDto);
-  }
+    @Post()
+    addToCart(@GetUser('id') userId: string, @Body() dto: AddToCartDto) {
+        return this.cartService.addToCart(userId, dto);
+    }
 
-  @Get()
-  findAll() {
-    return this.cartService.findAll();
-  }
+    @Get()
+    getCart(@GetUser('id') userId: string) {
+        return this.cartService.getCart(userId);
+    }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.cartService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCartDto: UpdateCartDto) {
-    return this.cartService.update(+id, updateCartDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.cartService.remove(+id);
-  }
+    @Delete(':itemId')
+    removeItem(@GetUser('id') userId: string, @Param('itemId') itemId: string) {
+        return this.cartService.removeItem(userId, itemId);
+    }
 }

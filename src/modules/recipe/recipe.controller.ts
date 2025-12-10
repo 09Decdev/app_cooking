@@ -1,34 +1,32 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Delete, UseGuards } from '@nestjs/common';
 import { RecipeService } from './recipe.service';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
-import { UpdateRecipeDto } from './dto/update-recipe.dto';
+import { AuthGuard } from '@nestjs/passport';
+import {GetUser} from "../../common/get-user.decorator";
 
-@Controller('recipe')
+@Controller('recipes')
 export class RecipeController {
-  constructor(private readonly recipeService: RecipeService) {}
+    constructor(private readonly recipeService: RecipeService) {}
 
-  @Post()
-  create(@Body() createRecipeDto: CreateRecipeDto) {
-    return this.recipeService.create(createRecipeDto);
-  }
+    @UseGuards(AuthGuard('jwt'))
+    @Post()
+    create(@GetUser('id') userId: string, @Body() dto: CreateRecipeDto) {
+        return this.recipeService.create(dto, userId);
+    }
 
-  @Get()
-  findAll() {
-    return this.recipeService.findAll();
-  }
+    @Get()
+    findAll() {
+        return this.recipeService.findAll();
+    }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.recipeService.findOne(+id);
-  }
+    @Get(':id')
+    findOne(@Param('id') id: string) {
+        return this.recipeService.findOne(id);
+    }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateRecipeDto: UpdateRecipeDto) {
-    return this.recipeService.update(+id, updateRecipeDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.recipeService.remove(+id);
-  }
+    @UseGuards(AuthGuard('jwt'))
+    @Delete(':id')
+    remove(@Param('id') id: string, @GetUser('id') userId: string) {
+        return this.recipeService.remove(id, userId);
+    }
 }

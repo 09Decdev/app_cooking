@@ -1,34 +1,68 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { ProductService } from './product.service';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
+import {
+    Body,
+    Controller,
+    Delete,
+    Get,
+    HttpStatus,
+    Param,
+    Post,
+    Put,
+    UploadedFile,
+    UseGuards,
+    UseInterceptors
+} from '@nestjs/common';
+import {FileInterceptor} from '@nestjs/platform-express';
+import {ProductService} from './product.service';
+import {CreateProductDto} from './dto/create-product.dto';
+import {UpdateProductDto} from './dto/update-product.dto';
+import {AuthGuard} from '@nestjs/passport';
+import {GetUser} from "../../common/get-user.decorator";
 
-@Controller('product')
+@Controller('products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+    constructor(private readonly productService: ProductService) {
+    }
 
-  @Post()
-  create(@Body() createProductDto: CreateProductDto) {
-    return this.productService.create(createProductDto);
-  }
+    @Post()
+    @UseGuards(AuthGuard('jwt'))
+    @UseInterceptors(FileInterceptor('file'))
+    create(
+        @Body() dto: CreateProductDto,
+        @GetUser('id') userId: string,
+        @UploadedFile() file: Express.Multer.File,
+    ) {
+        return this.productService.create(dto, userId, file);
+    }
 
-  @Get()
-  findAll() {
-    return this.productService.findAll();
-  }
+    @Put(':id')
+    @UseGuards(AuthGuard('jwt'))
+    @UseInterceptors(FileInterceptor('file'))
+    update(
+        @Param('id') id: string,
+        @Body() dto: UpdateProductDto,
+        @GetUser('id') userId: string,
+        @UploadedFile() file: Express.Multer.File,
+    ) {
+        return this.productService.update(id, dto, userId, file);
+    }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.productService.findOne(+id);
-  }
+    @Get()
+    findAll() {
+        return this.productService.findAll();
+    }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productService.update(+id, updateProductDto);
-  }
+    @Get(':id')
+    findOne(@Param('id') id: string) {
+        return this.productService.findOne(id);
+    }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.productService.remove(+id);
-  }
+    @Delete(':id')
+    @UseGuards(AuthGuard('jwt'))
+    async remove(@Param('id') id: string, @GetUser('id') userId: string,) {
+        await this.productService.remove(id, userId);
+        return {
+            status: HttpStatus.OK,
+            body: "delete successfully."
+        };
+    }
 }

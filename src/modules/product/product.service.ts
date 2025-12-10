@@ -1,26 +1,86 @@
-import { Injectable } from '@nestjs/common';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
+import {ForbiddenException, Injectable, NotFoundException} from '@nestjs/common';
+import {CreateProductDto} from './dto/create-product.dto';
+import {UpdateProductDto} from './dto/update-product.dto';
+import {MinioService} from '../minio/minio.service';
+import {PrismaService} from "../../prisma.service";
 
 @Injectable()
 export class ProductService {
-  create(createProductDto: CreateProductDto) {
-    return 'This action adds a new product';
-  }
+    constructor(
+        private prisma: PrismaService,
+        private minioService: MinioService,
+    ) {
+    }
 
-  findAll() {
-    return `This action returns all product`;
-  }
+    async create(dto: CreateProductDto, userId: string, file?: Express.Multer.File) {
+        if (file) {
+            const uploadResult = await this.minioService.uploadFile(file);
+            dto.image = uploadResult.fileName;
+        }
 
-  findOne(id: number) {
-    return `This action returns a #${id} product`;
-  }
+        return this.prisma.product.create({
+            data: {
+                name: dto.name,
+                price: dto.price,
+                description: dto.description,
+                manufacturer:dto.manufacturer,
+                image: dto.image,
+                authorId: userId,
+                ingredientId: dto.ingredientId || null,
+            },
+        });
+    }
 
-  update(id: number, updateProductDto: UpdateProductDto) {
-    return `This action updates a #${id} product`;
-  }
+    async update(id: string, dto: UpdateProductDto, userId: string, file?: Express.Multer.File) {
+        const product = await this.prisma.product.findUnique({where: {id}});
+        if (!product) throw new NotFoundException('Sản phẩm không tồn tại');
 
-  remove(id: number) {
-    return `This action removes a #${id} product`;
-  }
+        if (product.authorId != userId) {
+            throw new ForbiddenException("You not permission to perform this action");
+        }
+
+        if (file) {
+            if (product.image) {
+                await this.minioService.deleteFile(product.image);
+            }
+            const uploadResult = await this.minioService.uploadFile(file);
+            dto.image = uploadResult.fileName;
+        }
+
+        return this.prisma.product.update({
+            where: {id},
+            data: {...dto},
+        });
+    }
+
+    findAll() {
+        return this.prisma.product.findMany({
+            include: {
+                ingredient: true,
+            },
+            orderBy: {name: 'asc'}
+        });
+    }
+
+    findOne(id: string) {
+        return this.prisma.product.findUnique({
+            where: {id},
+            include: {ingredient: true},
+        });
+    }
+
+    async remove(id: string, userId: string) {
+        const product = await this.findOne(id);
+        if (!product) throw new NotFoundException('Not found');
+
+        if (product.authorId != userId) {
+            throw new ForbiddenException("You not permission to perform this action");
+        }
+
+        if (product.image) {
+            await this.minioService.deleteFile(product.image);
+        }
+
+        return this.prisma.product.delete({where: {id}});
+    }
 }

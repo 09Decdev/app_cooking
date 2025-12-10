@@ -1,34 +1,33 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { CategoryService } from './category.service';
-import { CreateCategoryDto } from './dto/create-category.dto';
-import { UpdateCategoryDto } from './dto/update-category.dto';
+import {Body, Controller, Delete, Get, Param, Post, Put, UseGuards} from '@nestjs/common';
+import {CategoryService} from './category.service';
+import {CreateCategoryDto} from './dto/create-category.dto';
+import {UpdateCategoryDto} from "./dto/update-category.dto";
+import {GetUser} from "../../common/get-user.decorator";
+import {AuthGuard} from "@nestjs/passport";
 
-@Controller('category')
+@UseGuards(AuthGuard('jwt'))
+@Controller('categories')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+    constructor(private readonly categoryService: CategoryService) {
+    }
 
-  @Post()
-  create(@Body() createCategoryDto: CreateCategoryDto) {
-    return this.categoryService.create(createCategoryDto);
-  }
+    @Post()
+    create(@GetUser('id') userId: string, @Body() dto: CreateCategoryDto) {
+        return this.categoryService.create(dto, userId);
+    }
 
-  @Get()
-  findAll() {
-    return this.categoryService.findAll();
-  }
+    @Put(':id')
+    update(@Param('id') id: string, @GetUser('id') userId: string, @Body() dto: UpdateCategoryDto) {
+        return this.categoryService.update(id, dto, userId);
+    }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.categoryService.findOne(+id);
-  }
+    @Get()
+    findAll() {
+        return this.categoryService.findAll();
+    }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCategoryDto: UpdateCategoryDto) {
-    return this.categoryService.update(+id, updateCategoryDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.categoryService.remove(+id);
-  }
+    @Delete(':id')
+    remove(@Param('id') id: string,@GetUser('id') userId: string) {
+        return this.categoryService.remove(id,userId);
+    }
 }
