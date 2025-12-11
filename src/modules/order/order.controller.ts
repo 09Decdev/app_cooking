@@ -1,7 +1,8 @@
-import {Controller, Get, Ip, Post, UseGuards} from '@nestjs/common';
+import {Body, Controller, Get, Ip, Post, UseGuards} from '@nestjs/common';
 import {OrderService} from './order.service';
 import {AuthGuard} from '@nestjs/passport';
 import {GetUser} from "../../common/get-user.decorator";
+import {CreateOrderDto} from "./dto/create-order.dto";
 
 
 @Controller('orders')
@@ -13,9 +14,10 @@ export class OrderController {
     @Post('checkout')
     checkout(
         @GetUser('id') userId: string,
-        @Ip() ip: string
+        @Ip() ip: string,
+        @Body()dto: CreateOrderDto
     ) {
-        return this.orderService.checkout(userId, ip);
+        return this.orderService.checkout(userId, ip,dto);
     }
 
     @Get()

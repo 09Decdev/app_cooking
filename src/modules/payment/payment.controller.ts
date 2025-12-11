@@ -25,24 +25,6 @@ export class PaymentController {
         return {paymentUrl: url};
     }
 
-    @Get('vnpay-return')
-    async handleVnpayReturn(
-        @Query() vnpayQuery: VnpayReturnDto,
-        @Res() res: Response,
-    ) {
-        const verifyResult = await this.paymentService.verifyReturnUrl(vnpayQuery);
-
-        const deepLinkSuccess = 'myflutterapp://payment/success';
-        const deepLinkFailed = 'myflutterapp://payment/failed';
-
-        if (verifyResult.isSuccess && verifyResult.isVerified) {
-
-            return res.redirect(`${deepLinkSuccess}?orderId=${verifyResult.txnRef}`);
-        } else {
-            return res.redirect(`${deepLinkFailed}?orderId=${verifyResult.txnRef}`);
-        }
-
-    }
 
     @Get('vnpay-ipn')
     async vnpayIpn(
@@ -55,8 +37,5 @@ export class PaymentController {
         res.json(ipnResponse);
     }
 
-    @Get('requery/:id')
-    async manualRequery(@Param('id') id: string) {
-        return this.paymentService.requeryTransactionHistory(id);
-    }
+
 }

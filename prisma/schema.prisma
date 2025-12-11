@@ -17,21 +17,19 @@ model User {
   email    String  @unique
   password String
   name     String?
-  avatar   String? // URL ảnh
+  avatar   String?
   role     String  @default("USER")
 
   createdAt DateTime @default(now())
 
-  // Quan hệ
   recipes  Recipe[]
   orders   Order[]
   likes    Like[]
   comments Comment[]
-  cart     Cart? // 1 User có 1 giỏ hàng
+  cart     Cart?
   Category Category[]
 }
 
-// các danh mục món ăn
 model Category {
   id       String   @id @default(uuid())
   name     String
@@ -44,9 +42,9 @@ model Category {
 model Recipe {
   id          String  @id @default(uuid())
   title       String
-  image       String? // Ảnh đại diện
+  image       String?
   description String?
-  cookTime    Int // Phút
+  cookTime    Int
 
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
@@ -54,13 +52,12 @@ model Recipe {
   authorId String
   author   User   @relation(fields: [authorId], references: [id])
 
-  ingredients RecipeIngredient[] // Nguyên liệu cần cho món này
-  steps       Step[] // Các bước nấu
+  ingredients RecipeIngredient[]
+  steps       Step[]
   likes       Like[]
   comments    Comment[]
 }
 
-// Các bước
 model Step {
   id       String  @id @default(uuid())
   order    Int
@@ -68,9 +65,10 @@ model Step {
   image    String?
   recipeId String
   recipe   Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, order])
 }
 
-// nguyên liệu
 model Ingredient {
   id       String             @id @default(uuid())
   name     String
@@ -84,20 +82,19 @@ model RecipeIngredient {
   recipe       Recipe     @relation(fields: [recipeId], references: [id])
   ingredientId String
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
-  amount       String // Lưu chuỗi cho nhanh: "200g", "1 quả"
+  amount       String
 }
 
-// 3. STORE (Cửa hàng)
 model Product {
   id           String  @id @default(uuid())
-  name         String // "Thịt bò Mỹ khay 500g"
-  price        Int // Giá tiền (VND)
+  name         String
+  price        Int
   image        String?
   description  String?
   manufacturer String
   authorId     String
 
-  ingredientId String? // Map với nguyên liệu nấu ăn
+  ingredientId String?
   ingredient   Ingredient? @relation(fields: [ingredientId], references: [id])
 
   cartItems  CartItem[]
@@ -121,27 +118,31 @@ model CartItem {
 }
 
 model Order {
-  id         String      @id @default(uuid())
-  userId     String
-  user       User        @relation(fields: [userId], references: [id])
-  totalPrice Int
-  status     String      @default("PENDING") // PENDING, PAID
-  items      OrderItem[]
-  createdAt  DateTime    @default(now())
+  id          String  @id @default(uuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id])
+  totalPrice  Int
+  status      String  @default("PENDING")
+  userName    String
+  phoneNumber String
+  address     String
+  note        String?
+
+  items     OrderItem[]
+  createdAt DateTime    @default(now())
 }
 
 model OrderItem {
   id          String   @id @default(uuid())
   orderId     String
   order       Order    @relation(fields: [orderId], references: [id])
-  productName String // Lưu tên SP lúc mua
-  price       Int // Lưu giá lúc mua
+  productName String
+  price       Int
   quantity    Int
   Product     Product? @relation(fields: [productId], references: [id])
   productId   String?
 }
 
-// 4. INTERACTION (Tương tác)
 model Like {
   id       String @id @default(uuid())
   userId   String
@@ -149,7 +150,7 @@ model Like {
   recipeId String
   recipe   Recipe @relation(fields: [recipeId], references: [id])
 
-  @@unique([userId, recipeId]) // 1 người chỉ like 1 lần
+  @@unique([userId, recipeId])
 }
 
 model Comment {
@@ -160,6 +161,7 @@ model Comment {
   recipeId String
   recipe   Recipe @relation(fields: [recipeId], references: [id])
 }
+
 model Plan {
   id            String         @id @default(uuid())
   name          String
@@ -181,6 +183,7 @@ model Subscription {
   plan         Plan          @relation(fields: [planId], references: [id])
   transactions Transaction[]
 }
+
 model Transaction {
   id                String    @id @default(uuid())
   userId            String

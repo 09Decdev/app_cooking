@@ -2,6 +2,7 @@ import {BadRequestException, Injectable} from '@nestjs/common';
 import {PaymentService} from '../payment/payment.service';
 import {OnEvent} from '@nestjs/event-emitter';
 import {PrismaService} from "../../prisma.service";
+import {CreateOrderDto} from "./dto/create-order.dto";
 
 @Injectable()
 export class OrderService {
@@ -11,7 +12,7 @@ export class OrderService {
     ) {
     }
 
-    async checkout(userId: string, ipAddr: string) {
+    async checkout(userId: string, ipAddr: string, dto: CreateOrderDto) {
         const cart = await this.prisma.cart.findUnique({
             where: {userId},
             include: {items: {include: {product: true}}},
@@ -29,11 +30,15 @@ export class OrderService {
                     userId: userId,
                     totalPrice: totalAmount,
                     status: 'PENDING',
+                    userName: dto.recipientName,
+                    phoneNumber: dto.phoneNumber,
+                    address: dto.address,
+                    note: dto.note,
                     items: {
                         create: cart.items.map((item) => ({
                             productId: item.productId,
-                            productName: item.product.name, // Lưu snapshot tên
-                            price: item.product.price,      // Lưu snapshot giá
+                            productName: item.product.name,
+                            price: item.product.price,
                             quantity: item.quantity,
                         })),
                     },
@@ -52,8 +57,9 @@ export class OrderService {
         );
 
         return {
-            message: 'Tạo đơn hàng thành công',
+            message: 'Đơn hàng đã được tạo',
             orderId: order.id,
+            totalAmount,
             paymentUrl: paymentUrl
         };
     }
@@ -67,18 +73,19 @@ export class OrderService {
     }
 
     @OnEvent('payment.success')
-    async handlePaymentSuccess(payload: any) {
-        console.log(`[OrderService] Nhận sự kiện thanh toán thành công cho Order #${payload.orderId}`);
+    async handlePaymentSuccess(payload: { orderId: string }) {
+        console.log(`[OrderService] Payment SUCCESS for Order #${payload.orderId}`);
 
         await this.prisma.order.update({
             where: {id: payload.orderId},
             data: {status: 'PAID'}
         });
+
     }
 
     @OnEvent('payment.failed')
-    async handlePaymentFailed(payload: any) {
-        console.log(`[OrderService] Thanh toán thất bại cho Order #${payload.orderId}`);
+    async handlePaymentFailed(payload: { orderId: string }) {
+        console.log(`[OrderService] Payment FAILED for Order #${payload.orderId}`);
 
         await this.prisma.order.update({
             where: {id: payload.orderId},

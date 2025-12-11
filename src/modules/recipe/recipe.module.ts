@@ -1,10 +1,13 @@
-import { Module } from '@nestjs/common';
-import { RecipeService } from './recipe.service';
-import { RecipeController } from './recipe.controller';
+import {Module} from '@nestjs/common';
+import {RecipeService} from './recipe.service';
+import {RecipeController} from './recipe.controller';
 import {PrismaService} from "../../prisma.service";
+import {MinioModule} from "../minio/minio.module";
 
 @Module({
-  controllers: [RecipeController],
-  providers: [RecipeService,PrismaService],
+    imports: [MinioModule],
+    controllers: [RecipeController],
+    providers: [RecipeService, PrismaService],
 })
-export class RecipeModule {}
+export class RecipeModule {
+}

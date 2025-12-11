@@ -5,7 +5,7 @@ import {AddToCartDto} from "./dto/create-cart.dto";
 import {GetUser} from "../../common/get-user.decorator";
 
 @Controller('cart')
-@UseGuards(AuthGuard('jwt')) // Bắt buộc đăng nhập
+@UseGuards(AuthGuard('jwt'))
 export class CartController {
     constructor(private readonly cartService: CartService) {}
 

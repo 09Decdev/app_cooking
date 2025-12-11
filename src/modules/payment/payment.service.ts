@@ -1,19 +1,10 @@
-import { VnpayService } from "nestjs-vnpay";
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { dateFormat, QueryDr, ReturnQueryFromVNPay, VerifyReturnUrl, VnpLocale } from "vnpay";
-import { EventEmitter2 } from "@nestjs/event-emitter";
+import {VnpayService} from "nestjs-vnpay";
+import {BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException} from "@nestjs/common";
+import {dateFormat, ReturnQueryFromVNPay, VerifyReturnUrl, VnpLocale} from "vnpay";
+import {EventEmitter2} from "@nestjs/event-emitter";
 
-import {
-    IpnRspCode,
-    PaymentExpiry,
-    TransactionCurrency,
-    TransactionItemType,
-    TransactionStatus,
-    VnpayResponseCode,
-    VnpayTransactionStatus
-} from "./enum/transaction.enum";
-import { PrismaService } from "../../prisma.service";
-import { VNPayResponseMessagesService } from "./exceptions/vnpay_response"; // Giả định bạn có service này
+import {IpnRspCode, TransactionCurrency, TransactionItemType, TransactionStatus} from "./enum/transaction.enum";
+import {PrismaService} from "../../prisma.service";
 
 @Injectable()
 export class PaymentService {
@@ -22,9 +13,9 @@ export class PaymentService {
     constructor(
         private readonly vnpayService: VnpayService,
         private readonly prismaService: PrismaService,
-        private readonly vnPayResponseMessagesService: VNPayResponseMessagesService,
         private readonly eventEmitter: EventEmitter2
-    ) {}
+    ) {
+    }
 
     async getBankList() {
         const bankList = await this.vnpayService.getBankList();
@@ -35,7 +26,7 @@ export class PaymentService {
     }
 
     async createPaymentOrder(ipAddress: string, userId: string, orderId: string) {
-        const order = await this.prismaService.order.findUnique({ where: { id: orderId } });
+        const order = await this.prismaService.order.findUnique({where: {id: orderId}});
 
         if (!order) throw new NotFoundException('Đơn hàng không tồn tại');
         if (order.userId !== userId) throw new ForbiddenException('Không có quyền thanh toán đơn này');
@@ -66,11 +57,6 @@ export class PaymentService {
         });
     }
 
-    async verifyReturnUrl(vnpayQuery: ReturnQueryFromVNPay): Promise<VerifyReturnUrl & { txnRef?: string }> {
-        const verify = await this.vnpayService.verifyReturnUrl(vnpayQuery);
-        const txnRef = vnpayQuery.vnp_TxnRef;
-        return { ...verify, txnRef: txnRef };
-    }
 
     async handleVnpayIpn(vnpayQuery: ReturnQueryFromVNPay) {
         const txnRef = vnpayQuery.vnp_TxnRef;
@@ -78,114 +64,22 @@ export class PaymentService {
 
         const verify = await this.vnpayService.verifyReturnUrl(vnpayQuery);
         if (!verify.isVerified) {
-            return { RspCode: IpnRspCode.CHECKSUM_FAILED, Message: 'Checksum failed' };
+            return {RspCode: IpnRspCode.CHECKSUM_FAILED, Message: 'Checksum failed'};
         }
 
-        const transaction = await this.prismaService.transaction.findUnique({ where: { id: txnRef } });
+        const transaction = await this.prismaService.transaction.findUnique({where: {id: txnRef}});
         if (!transaction) {
-            return { RspCode: IpnRspCode.ORDER_NOT_FOUND, Message: 'Order not found' };
+            return {RspCode: IpnRspCode.ORDER_NOT_FOUND, Message: 'Order not found'};
         }
 
         await this._confirmTransaction(txnRef, verify, vnpayQuery);
 
-        return { RspCode: IpnRspCode.SUCCESS, Message: 'Success' };
+        return {RspCode: IpnRspCode.SUCCESS, Message: 'Success'};
     }
 
-    async requeryTransactionHistory(transactionId: string) {
-        const transaction = await this.prismaService.transaction.findUnique({
-            where: { id: transactionId },
-        });
 
-        if (!transaction) {
-            throw new NotFoundException("Transaction not found");
-        }
-
-        // B. Chuẩn bị params gọi sang VNPay
-        const vnp_RequestId = `${transaction.id}-q-${Date.now()}`;
-        const queryDrParams: QueryDr = {
-            vnp_RequestId: vnp_RequestId,
-            vnp_TxnRef: transaction.id,
-            vnp_OrderInfo: `Truy van ket qua giao dich ${transaction.id}`,
-            vnp_TransactionDate: dateFormat(transaction.createdAt), // Lưu ý: hàm dateFormat của vnpay library
-            vnp_CreateDate: dateFormat(new Date()),
-            vnp_IpAddr: '127.0.0.1',
-            vnp_TransactionNo: transaction.vnp_TransactionNo ? Number(transaction.vnp_TransactionNo) : 0,
-        };
-
-        // C. Gọi API QueryDR của VNPay
-        const vnpayStatus = await this.vnpayService.queryDr(queryDrParams);
-        this.logger.log(`[Requery] QueryDR for ${transaction.id}: ${vnpayStatus?.vnp_ResponseCode}`);
-
-        // D. Xử lý kết quả trả về (Cập nhật DB nếu cần)
-        await this.processQueryDrResponse(vnpayStatus, transaction);
-
-        // E. Trả về thông tin mới nhất
-        return this.prismaService.transaction.findUnique({
-            where: { id: transactionId },
-        });
-    }
-
-    private async processQueryDrResponse(vnpayStatus: any, transaction: any) {
-        const responseCode = vnpayStatus?.vnp_ResponseCode;
-        const message = this.vnPayResponseMessagesService?.getVnpayMessage(responseCode) || `QueryDR Code: ${responseCode}`;
-
-        // Chỉ xử lý nếu DB đang là PENDING (để tránh ghi đè giao dịch đã xong)
-        if (transaction.status !== TransactionStatus.PENDING) {
-            return;
-        }
-
-        switch (responseCode) {
-            case VnpayResponseCode.SUCCESS:
-                if (vnpayStatus.vnp_TransactionStatus === VnpayTransactionStatus.SUCCESS) {
-                    this.logger.log(`[QueryDR] Giao dịch ${transaction.id} THÀNH CÔNG.`);
-
-                    await this.prismaService.transaction.update({
-                        where: { id: transaction.id },
-                        data: {
-                            status: TransactionStatus.COMPLETED,
-                            vnp_TransactionNo: vnpayStatus.vnp_TransactionNo,
-                            vnp_BankCode: vnpayStatus.vnp_BankCode,
-                            vnp_PayDate: vnpayStatus.vnp_PayDate,
-                        }
-                    });
-
-                    // Ghi lịch sử
-                    await this.createTransactionHistory(transaction.id, TransactionStatus.COMPLETED, "Thành công (QueryDR)", responseCode);
-
-                    // Kích hoạt Event Emitter
-                    await this.handleSuccessfulPayment(transaction);
-
-                } else if (vnpayStatus.vnp_TransactionStatus === VnpayTransactionStatus.PENDING) {
-                    // Nếu vẫn Pending -> Check hết hạn
-                    if (transaction.expiresAt && transaction.expiresAt < new Date()) {
-                        this.logger.warn(`[QueryDR] Giao dịch ${transaction.id} đã hết hạn.`);
-                        await this.prismaService.transaction.update({
-                            where: { id: transaction.id },
-                            data: { status: TransactionStatus.EXPIRED }
-                        });
-                        await this.handleFailedPayment(transaction);
-                    }
-                } else {
-                    // Các trạng thái khác -> Failed
-                    await this.prismaService.transaction.update({
-                        where: { id: transaction.id },
-                        data: { status: TransactionStatus.FAILED }
-                    });
-                    await this.createTransactionHistory(transaction.id, TransactionStatus.FAILED, `Thất bại (QueryDR: ${vnpayStatus.vnp_TransactionStatus})`, responseCode);
-                    await this.handleFailedPayment(transaction);
-                }
-                break;
-
-            // Các case lỗi khác của API QueryDR
-            default:
-                // Tùy logic, có thể đánh dấu Failed hoặc Expired
-                break;
-        }
-    }
-
-    // --- HELPER: XÁC NHẬN GIAO DỊCH (Dùng cho IPN) ---
     private async _confirmTransaction(txnRef: string, verify: VerifyReturnUrl, vnpayQuery: ReturnQueryFromVNPay): Promise<number> {
-        const transaction = await this.prismaService.transaction.findUnique({ where: { id: txnRef } });
+        const transaction = await this.prismaService.transaction.findUnique({where: {id: txnRef}});
         if (!transaction || transaction.status !== TransactionStatus.PENDING) return 0;
 
         const amountDb = transaction.amount;
@@ -203,7 +97,7 @@ export class PaymentService {
 
         await this.prismaService.$transaction(async (prisma) => {
             const updatedTransaction = await prisma.transaction.updateMany({
-                where: { id: txnRef, status: TransactionStatus.PENDING },
+                where: {id: txnRef, status: TransactionStatus.PENDING},
                 data: {
                     status: newStatus,
                     vnp_TransactionNo: vnpayQuery.vnp_TransactionNo ? String(vnpayQuery.vnp_TransactionNo) : undefined,
@@ -235,12 +129,12 @@ export class PaymentService {
         return updatedCount;
     }
 
-    // --- HELPER: EVENT EMITTER ---
     private async handleSuccessfulPayment(transaction: any) {
         this.logger.log(`Thanh toán thành công: ${transaction.id}`);
         this.eventEmitter.emit('payment.success', {
             transactionId: transaction.id,
             orderId: transaction.itemId,
+            cartId: transaction.cartId,
             status: 'PAID'
         });
     }
@@ -254,7 +148,6 @@ export class PaymentService {
         });
     }
 
-    // --- HELPER: COMMON ---
     private buildVnpayUrl(params: any): string {
         let cleanIpAddr = params.ipAddr || '127.0.0.1';
         if (cleanIpAddr === '::1') cleanIpAddr = '127.0.0.1';
