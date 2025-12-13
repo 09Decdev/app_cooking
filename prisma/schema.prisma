@@ -28,6 +28,7 @@ model User {
   comments Comment[]
   cart     Cart?
   Category Category[]
+  Review   Review[]
 }
 
 model Category {
@@ -56,6 +57,7 @@ model Recipe {
   steps       Step[]
   likes       Like[]
   comments    Comment[]
+  Review      Review[]
 }
 
 model Step {
@@ -154,12 +156,13 @@ model Like {
 }
 
 model Comment {
-  id       String @id @default(uuid())
-  content  String
-  userId   String
-  user     User   @relation(fields: [userId], references: [id])
-  recipeId String
-  recipe   Recipe @relation(fields: [recipeId], references: [id])
+  id        String   @id @default(uuid())
+  content   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  recipeId  String
+  createdAt DateTime @default(now())
+  recipe    Recipe   @relation(fields: [recipeId], references: [id])
 }
 
 model Plan {
@@ -170,6 +173,23 @@ model Plan {
   description   String?
   createdAt     DateTime       @default(now())
   subscriptions Subscription[]
+}
+
+model Review {
+  id      String  @id @default(uuid())
+  rating  Int
+  content String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, recipeId])
 }
 
 model Subscription {
