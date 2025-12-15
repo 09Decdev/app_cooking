@@ -1,6 +1,8 @@
+version: "3.9"
+
 services:
   postgres-cooking-service:
-    image: postgres:18
+    image: postgres:16
     container_name: postgres-cooking-service
     environment:
       POSTGRES_USER: appuser
@@ -9,26 +11,40 @@ services:
     ports:
       - "5438:5432"
     volumes:
-      - ./docker/postgres/cooking-app:/var/lib/postgresql/18/docker
-#    networks:
-#      - compose_app_net
+      - postgres_cooking_data:/var/lib/postgresql/data
+    networks:
+      - compose_app_net
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - compose_app_net
 
 #  redis:
-#    image: redis:8.2.2-alpine3.22
+#    image: redis:7-alpine
 #    container_name: redis
-#    # command: ["redis-server", "--requirepass", "secret"]
 #    ports:
 #      - "6379:6379"
 #    networks:
 #      - compose_app_net
-#
+
 #  redpanda:
 #    image: redpandadata/redpanda:v25.2.6
 #    container_name: redpanda
 #    ports:
-#      - "29092:29092"     # External (host)
-#      - "19092:19092"     # Internal (Docker)
-#      - "9644:9644"       # Admin API
+#      - "29092:29092"
+#      - "19092:19092"
+#      - "9644:9644"
 #    command:
 #      - redpanda
 #      - start
@@ -40,42 +56,16 @@ services:
 #      - --check=false
 #      - --kafka-addr INTERNAL://redpanda:19092,EXTERNAL://0.0.0.0:29092
 #      - --advertise-kafka-addr INTERNAL://redpanda:19092,EXTERNAL://localhost:29092
-#      - --pandaproxy-addr 0.0.0.0:8082
-#      - --advertise-pandaproxy-addr redpanda:8082
-#      - --rpc-addr 0.0.0.0:33145
-#      - --advertise-rpc-addr redpanda:33145
 #    volumes:
-#      - redpanda:/var/lib/redpanda/data
-#    networks:
-#      - compose_app_net
-#
-#  redpanda-console:
-#    image: docker.redpanda.com/redpandadata/console:latest
-#    container_name: redpanda-console
-#    ports:
-#      - "8080:8080"
-#    environment:
-#      - KAFKA_BROKERS=redpanda:19092
-#      - REDPANDA_ADMIN_API=http://redpanda:9644
-#      - CONNECT_ENABLED=false
-#      - SCHEMAREGISTRY_ENABLED=false
-#      - ENABLE_BASIC_AUTH=true
-#      - CONSOLE_BASIC_AUTH_USERNAME=admin
-#      - CONSOLE_BASIC_AUTH_PASSWORD=S1234567s*
-#    depends_on:
-#      - redpanda
+#      - redpanda_data:/var/lib/redpanda/data
 #    networks:
 #      - compose_app_net
 
+networks:
+  compose_app_net:
+    driver: bridge
 
-  minio:
-    image: minio/minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: "minioadmin"
-      MINIO_ROOT_PASSWORD: "minioadmin"
-    command: server /data --console-address ":9001"
-    volumes:
-      - ./minio_data:/data
+volumes:
+  postgres_cooking_data:
+  minio_data:
+#  redpanda_data:
