@@ -1,5 +1,5 @@
 import {Module} from '@nestjs/common';
-import {ConfigModule, ConfigService} from '@nestjs/config';
+import {ConfigModule} from '@nestjs/config';
 import {AuthModule} from './modules/auth/auth.module';
 import {UserController} from './modules/user/user.controller';
 import {UserService} from './modules/user/user.service';
@@ -15,16 +15,36 @@ import {CommonModule} from './common/common.module';
 import {RecipeModule} from './modules/recipe/recipe.module';
 import {PrismaService} from './prisma.service';
 import {MinioModule} from './modules/minio/minio.module';
-import {EventEmitterModule} from "@nestjs/event-emitter";
-import {VnpayModule} from "nestjs-vnpay";
-import {HashAlgorithm} from "vnpay";
+import {seconds, ThrottlerGuard, ThrottlerModule} from "@nestjs/throttler";
+import {APP_GUARD} from "@nestjs/core";
 
 @Module({
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
         }),
-
+        ThrottlerModule.forRoot({
+            throttlers: [
+                {
+                    name: 'short',
+                    ttl: seconds(8),
+                    limit: 10,
+                    blockDuration: seconds(30),
+                },
+                {
+                    name: 'medium',
+                    ttl: seconds(30),
+                    limit: 15000,
+                    blockDuration: seconds(60),
+                },
+                {
+                    name: 'long',
+                    ttl: seconds(60),
+                    limit: 20000,
+                    blockDuration: seconds(120),
+                },
+            ],
+        }),
         AuthModule,
         UserModule,
         CategoryModule,
@@ -39,7 +59,14 @@ import {HashAlgorithm} from "vnpay";
         MinioModule,
     ],
     controllers: [UserController],
-    providers: [UserService, PrismaService],
+    providers: [
+        UserService,
+        PrismaService,
+        {
+        provide: APP_GUARD,
+        useClass: ThrottlerGuard,
+        },
+    ],
 })
 export class AppModule {
 }
