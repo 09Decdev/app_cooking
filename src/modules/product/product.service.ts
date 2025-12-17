@@ -1,4 +1,4 @@
-import {ForbiddenException, Injectable, NotFoundException} from '@nestjs/common';
+import {BadRequestException, ForbiddenException, Injectable, NotFoundException} from '@nestjs/common';
 import {CreateProductDto} from './dto/create-product.dto';
 import {UpdateProductDto} from './dto/update-product.dto';
 import {MinioService} from '../minio/minio.service';
@@ -82,5 +82,23 @@ export class ProductService {
         }
 
         return this.prisma.product.delete({where: {id}});
+    }
+
+    async search(keyword: string) {
+        if (!keyword?.trim()) {
+            throw new BadRequestException('Search keyword is required');
+        }
+
+        return this.prisma.product.findMany({
+            where: {
+                name: {
+                    contains: keyword,
+                    mode: 'insensitive',
+                },
+            },
+            orderBy: {
+                name: 'asc',
+            },
+        });
     }
 }

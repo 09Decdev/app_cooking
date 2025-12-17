@@ -6,7 +6,7 @@ import {
     HttpStatus,
     Param,
     Post,
-    Put,
+    Put, Query,
     UploadedFile,
     UseGuards,
     UseInterceptors
@@ -45,6 +45,10 @@ export class ProductController {
     ) {
         return this.productService.update(id, dto, userId, file);
     }
+    @Get('search')
+    async search(@Query('q') keyword: string) {
+        return this.productService.search(keyword);
+    }
 
     @Get()
     findAll() {
@@ -65,4 +69,5 @@ export class ProductController {
             body: "delete successfully."
         };
     }
+
 }

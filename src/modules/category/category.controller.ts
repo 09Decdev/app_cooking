@@ -32,12 +32,17 @@ export class CategoryController {
     @Put(':id')
     @UseInterceptors(FileInterceptor('file'))
     update(@Param('id') id: string, @GetUser('id') userId: string, @Body() dto: UpdateCategoryDto, @UploadedFile() file?: Express.Multer.File) {
-        return this.categoryService.update(id, dto, userId,file);
+        return this.categoryService.update(id, dto, userId, file);
     }
 
     @Get()
     findAll() {
         return this.categoryService.findAll();
+    }
+
+    @Get(':id')
+    findOne(@Param('id') id: string) {
+        return this.categoryService.findOne(id);
     }
 
     @Delete(':id')

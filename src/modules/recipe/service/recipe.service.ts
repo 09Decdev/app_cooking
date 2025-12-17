@@ -2,6 +2,7 @@ import {ForbiddenException, Injectable, NotFoundException} from '@nestjs/common'
 import {CreateRecipeDto} from '../dto/creat/create-recipe.dto';
 import {PrismaService} from "../../../prisma.service";
 import {MinioService} from "../../minio/minio.service";
+import {UpdateRecipeDto} from "../dto/update/update-recipe.dto";
 
 @Injectable()
 export class RecipeService {
@@ -28,32 +29,41 @@ export class RecipeService {
         });
     }
 
-    // async createIngredient(dto: CreateRecipeIngredientDto, userId: string) {
-    //     const recipe = await this.prisma.recipe.findUnique({
-    //         where: {id: dto.recipeId},
-    //     });
-    //     if (!recipe) {
-    //         throw new NotFoundException(`Recipe with id ${dto.recipeId} not found`);
-    //     }
-    //
-    //     const ingredient = await this.prisma.ingredient.findUnique({
-    //         where: {id: dto.ingredientId},
-    //     })
-    //     if (!ingredient) {
-    //         throw new NotFoundException(`Ingredient with id ${dto.ingredientId} not found`);
-    //     }
-    //     if (recipe.authorId != userId) {
-    //         throw new ForbiddenException("You don't have permission to use this action!");
-    //     }
-    //
-    //     return this.prisma.recipeIngredient.create({
-    //         data: {
-    //             recipeId: recipe.id,
-    //             ingredientId: ingredient.id,
-    //             amount: dto.amount
-    //         }
-    //     });
-    // }
+    async updateRecipe(userId: string, id: string, dto: UpdateRecipeDto, file?: Express.Multer.File) {
+        const recipe = await this.prisma.recipe.findUnique({
+            where: {id},
+        });
+
+        if (!recipe) {
+            throw new NotFoundException('No recipe found.');
+        }
+
+        if (recipe.authorId !== userId) {
+            throw new ForbiddenException(
+                'You do not have permission to update this recipe',
+            );
+        }
+
+        let filename = recipe.image;
+        if (file) {
+            const uploadedImage = await this.minioService.uploadFile(file);
+            if (filename) {
+                await this.minioService.deleteFile(filename);
+            }
+            filename = uploadedImage.fileName;
+        }
+
+        return this.prisma.recipe.update({
+            where: {id},
+            data: {
+                title: dto.title?.trim(),
+                description: dto.description,
+                cookTime: dto.cookTime,
+                categoryId: dto.categoryId,
+                image: filename,
+            },
+        });
+    }
 
     findAll() {
         return this.prisma.recipe.findMany({

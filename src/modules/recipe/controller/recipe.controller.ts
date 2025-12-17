@@ -21,6 +21,7 @@ import {StepService} from "../service/step.service";
 import {UpdateStepDto} from "../dto/update/update-step.dto";
 import {DetailIngredientService} from "../service/detail-ingredient.service";
 import {UpdateRecipeIngredientDto} from "../dto/update/update-ingredient.dto";
+import {UpdateRecipeDto} from "../dto/update/update-recipe.dto";
 
 @Controller('recipes')
 export class RecipeController {
@@ -35,6 +36,16 @@ export class RecipeController {
     @Post()
     create(@GetUser('id') userId: string, @Body() dto: CreateRecipeDto, @UploadedFile() file?: Express.Multer.File) {
         return this.recipeService.createRecipe(dto, userId, file);
+    }
+
+    @UseGuards(AuthGuard('jwt'))
+    @Put(':recipeId')
+    @UseInterceptors(FileInterceptor('file'))
+    update(@Param('recipeId') recipeId: string,
+           @GetUser('id') userId: string,
+           @Body() dto: UpdateRecipeDto,
+           @UploadedFile() file?: Express.Multer.File) {
+        return this.recipeService.updateRecipe(userId, recipeId, dto, file);
     }
 
     @UseGuards(AuthGuard('jwt'))

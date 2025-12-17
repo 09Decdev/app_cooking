@@ -162,7 +162,7 @@ export class PaymentService {
             vnp_IpAddr: cleanIpAddr,
             vnp_TxnRef: params.txnRef,
             vnp_OrderInfo: params.orderInfo,
-            vnp_ReturnUrl: process.env.VNPAY_RETURN_URL || `http://localhost:3000/payment/vnpay-return`,
+            vnp_ReturnUrl: process.env.VNPAY_RETURN_URL || `http://localhost:9999/payment/vnpay-return`,
             vnp_Locale: params.locale || VnpLocale.VN,
             vnp_CreateDate: dateFormat(createDate),
             vnp_ExpireDate: dateFormat(expireDate),

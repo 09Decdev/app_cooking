@@ -58,12 +58,21 @@ export class CategoryService {
         return this.prisma.category.findMany();
     }
 
-    findOne(id: string) {
-        const category = this.prisma.category.findUnique({where: {id}});
+    async findOne(id: string) {
+        const category = await this.prisma.category.findUnique({
+            where: { id },
+            include: {
+                recipes: true,
+            },
+        });
+
         if (!category) {
             throw new NotFoundException(`Category with id ${id} not found`);
         }
+
+        return category;
     }
+
 
     async remove(id: string, userId: string) {
         const category = await this.prisma.category.findUnique({where: {id}});

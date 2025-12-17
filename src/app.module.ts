@@ -17,6 +17,7 @@ import {PrismaService} from './prisma.service';
 import {MinioModule} from './modules/minio/minio.module';
 import {seconds, ThrottlerGuard, ThrottlerModule} from "@nestjs/throttler";
 import {APP_GUARD} from "@nestjs/core";
+import {ThrottlerStorageRedisService} from "@nest-lab/throttler-storage-redis";
 
 @Module({
     imports: [
@@ -44,6 +45,10 @@ import {APP_GUARD} from "@nestjs/core";
                     blockDuration: seconds(120),
                 },
             ],
+            storage: new ThrottlerStorageRedisService({
+                host: process.env.REDIS_HOST || 'localhost',
+                port: Number(process.env.REDIS_PORT) || 6379,
+            }),
         }),
         AuthModule,
         UserModule,
@@ -63,8 +68,8 @@ import {APP_GUARD} from "@nestjs/core";
         UserService,
         PrismaService,
         {
-        provide: APP_GUARD,
-        useClass: ThrottlerGuard,
+            provide: APP_GUARD,
+            useClass: ThrottlerGuard,
         },
     ],
 })
